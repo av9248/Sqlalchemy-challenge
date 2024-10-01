@@ -49,7 +49,7 @@ def welcome():
         f"/api/v1.0/stations<br/>"
         f"/api/v1.0/tobs<br/>"
         f"/api/v1.0/start<br/>"
-        f"/api/v1.0/end<br/>"
+        f"/api/v1.0/<start>/<end><br/>"
     )
 
 
@@ -67,7 +67,7 @@ def precipitation():
     session.close()
 
     #dictionary using date as the key and prcp as the value
-    precip = {date: prcp for date, prcp in precipitation}
+    precip = {date: prcp for date, prcp in precipitation_data}
 
     return jsonify(precip)
 
@@ -98,7 +98,6 @@ def tobs():
 
     temperature_data = session.query(Measurement.date, Measurement.tobs).filter(Measurement.station == "USC00519281",Measurement.date >= previous_year).all()
 
-
     session.close()
 
     # Return a JSON list of stations from the dataset
@@ -106,48 +105,48 @@ def tobs():
 
     return jsonify(temp)
 
-@app.route("/api/v1.0/<start>")
-def start():
-    # Create our session (link) from Python to the DB
-    session = Session(engine)
 
-    # Query 
-    temperature_stats = session.query(
-    func.min(Measurement.tobs).label('min_temp'),
-    func.max(Measurement.tobs).label('max_temp'),
-    func.avg(Measurement.tobs).label('avg_temp')
-    ).filter(Measurement.station == "USC00519281").first()
-
-    session.close()
-
-    # Return a JSON list of stations from the dataset
-    stats = list(np.ravel(temperature_stats))
-
-    return jsonify(stats)
-
-@app.route("/api/v1.0/<start>/<end>")
-def start_end(start, end):
-    # Create our session (link) from Python to the DB
-    session = Session(engine)
-
-
-    # The format "%m%d%Y" is the standard format for the date in the dataset.
+@app.route("/api/v1.0/temp/<start>")
+@app.route("/api/v1.0/temp/<start>/<end>")
+def stats(start=None, end=None):
+    """Return TMIN, TAVG, TMAX."""
+    # Select statement
+    sel = [func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)]
+    if not end:
+        # start = dt.datetime.strptime(start, "%m/%d/%Y")
+        # # calculate TMIN, TAVG, TMAX for dates greater than start
+        # results = session.query(*sel).\
+        #     filter(Measurement.date >= start).all()
+        # # Unravel results into a 1D array and convert to a list
+        # temps = list(np.ravel(results))
+        # return jsonify(temps)
+        start = dt.datetime.strptime(start, "%m%d%Y")
+        results = session.query(*sel).\
+            filter(Measurement.date >= start).all()
+        session.close()
+        temps = list(np.ravel(results))
+        return jsonify(temps)
+    # calculate TMIN, TAVG, TMAX with start and stop
     start = dt.datetime.strptime(start, "%m%d%Y")
     end = dt.datetime.strptime(end, "%m%d%Y")
-
-    results = session.query(
-    func.min(Measurement.tobs).label('min_temp'),
-    func.max(Measurement.tobs).label('max_temp'),
-    func.avg(Measurement.tobs).label('avg_temp')
-    ).filter(Measurement.date >= start).\
-    filter(Measurement.date <= end).all() == "USC00519281".first()
-
+    results = session.query(*sel).\
+        filter(Measurement.date >= start).\
+        filter(Measurement.date <= end).all()
     session.close()
-
-    # Return a JSON list of stations from the dataset
-    stats = list(np.ravel(results))
-
-    return jsonify(stats)
-
+    # Unravel results into a 1D array and convert to a list
+    temps = list(np.ravel(results))
+    return jsonify(temps=temps)
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
+
+
+
+
+
+
+
+
+
+
+
+
